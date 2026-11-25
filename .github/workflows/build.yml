@@ -1,3 +1,4 @@
+
 name: Build Calculator Imba (Win + macOS)
 
 on: [push, workflow_dispatch]
@@ -7,7 +8,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: microsoft/setup-msbuild@v2
 
       - name: Download JUCE
         uses: actions/checkout@v4
@@ -16,64 +16,70 @@ jobs:
           ref: master
           path: JUCE
 
-      - name: Build Projucer
+      - name: Generate CMakeLists.txt
         shell: pwsh
         run: |
-          $projucerSln = Get-ChildItem -Path "JUCE\extras\Projucer\Builds" -Filter "Projucer.sln*" -Recurse | Select-Object -First 1
-          msbuild $projucerSln.FullName /p:Configuration=Release /p:Platform=x64
+          $cmake = @"
+          cmake_minimum_required(VERSION 3.22)
+          project(CalculatorImba VERSION 1.0.0)
+          set(CMAKE_CXX_STANDARD 17)
+          add_subdirectory(JUCE)
 
-      - name: Prepare .jucer & Resave
-        shell: pwsh
-        run: |
-          $template = Get-ChildItem -Path "JUCE\examples\Plugins" -Filter "GainPlugin*.jucer" -Recurse | Select-Object -First 1
-          Copy-Item $template.FullName "Calculator Imba.jucer" -Force
-          $xml = [xml](Get-Content "Calculator Imba.jucer")
-          $p = $xml.JUCERPROJECT
-          $p.SetAttribute("name", "Calculator Imba")
-          $p.SetAttribute("companyName", "AzotRuss")
-          $p.SetAttribute("pluginName", "Calculator Imba")
-          $p.SetAttribute("pluginFormats", "buildVST3,buildAU")
-          $mg = $p.MAINGROUP
-          $mg.RemoveAll()
-          $mg.SetAttribute("id", "MainGrp")
-          $mg.SetAttribute("name", "Calculator Imba")
-          $sg = $xml.CreateElement("GROUP")
-          $sg.SetAttribute("id", "SrcGrp")
-          $sg.SetAttribute("name", "Source")
-          foreach ($f in @("bg.jpg","PluginProcessor.cpp","PluginProcessor.h","PluginEditor.cpp","PluginEditor.h")) {
-            $el = $xml.CreateElement("FILE")
-            $el.SetAttribute("id", "id_" + ($f -replace '\.','_'))
-            $el.SetAttribute("name", $f)
-            $el.SetAttribute("compile", $(if ($f -like "*.cpp") {"1"} else {"0"}))
-            $el.SetAttribute("resource", $(if ($f -eq "bg.jpg") {"1"} else {"0"}))
-            $el.SetAttribute("file", "Source/" + $f)
-            $sg.AppendChild($el) | Out-Null
-          }
-          $mg.AppendChild($sg) | Out-Null
-          foreach ($mp in $xml.SelectNodes("//MODULEPATH")) {
-            $mp.SetAttribute("path", "JUCE/modules")
-          }
-          $xml.Save((Resolve-Path "Calculator Imba.jucer"))
+          juce_add_plugin(CalculatorImba
+              COMPANY_NAME "AzotRuss"
+              IS_SYNTH FALSE
+              NEEDS_MIDI_INPUT FALSE
+              NEEDS_MIDI_OUTPUT FALSE
+              IS_MIDI_EFFECT FALSE
+              PLUGIN_MANUFACTURER_CODE Azot
+              PLUGIN_CODE Clc1
+              FORMATS VST3
+              PRODUCT_NAME "Calculator Imba")
 
-          $projucerExe = Get-ChildItem -Path "JUCE\extras\Projucer\Builds" -Filter "Projucer.exe" -Recurse | Select-Object -First 1
-          & $projucerExe.FullName --resave "Calculator Imba.jucer"
+          juce_generate_juce_header(CalculatorImba)
+
+          juce_add_binary_data(CalculatorImbaData SOURCES Source/bg.jpg)
+
+          target_sources(CalculatorImba PRIVATE
+              Source/PluginProcessor.cpp
+              Source/PluginEditor.cpp)
+
+          target_compile_definitions(CalculatorImba PUBLIC
+              JUCE_WEB_BROWSER=0
+              JUCE_USE_CURL=0
+              JUCE_VST3_CAN_REPLACE_VST2=0)
+
+          target_link_libraries(CalculatorImba PRIVATE
+              CalculatorImbaData
+              juce::juce_audio_utils
+              juce::juce_audio_processors
+              juce::juce_gui_extra
+              juce::juce_graphics
+              juce::juce_gui_basics
+              juce::juce_core
+              juce::juce_data_structures
+              juce::juce_events
+              juce::juce_audio_basics
+              juce::juce_audio_devices
+              juce::juce_audio_formats
+              juce::juce_audio_plugin_client
+              PUBLIC
+              juce::juce_recommended_config_flags
+              juce::juce_recommended_lto_flags
+              juce::juce_recommended_warning_flags)
+          "@
+          Set-Content -Path "CMakeLists.txt" -Value $cmake
 
       - name: Build VST3
         shell: pwsh
         run: |
-          $sharedProj = Get-ChildItem -Path "Builds" -Filter "*SharedCode.vcxproj" -Recurse | Select-Object -First 1
-          if ($sharedProj) { msbuild $sharedProj.FullName /p:Configuration=Release /p:Platform=x64 }
-          $vstProj = Get-ChildItem -Path "Builds" -Filter "*VST3.vcxproj" -Recurse | Select-Object -First 1
-          msbuild $vstProj.FullName /p:Configuration=Release /p:Platform=x64 /p:PostBuildEventUseInBuild=false
-
-          $dll = Get-ChildItem -Path "Builds" -Filter "*.dll" -Recurse | Where-Object { $_.FullName -like "*VST3*" } | Select-Object -First 1
-          $bundleDir = "Output\Calculator Imba.vst3\Contents\x86_64-win"
-          New-Item -ItemType Directory -Force -Path $bundleDir | Out-Null
-          Copy-Item $dll.FullName (Join-Path $bundleDir "Calculator Imba.vst3") -Force
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
 
       - name: Build EXE Installer
         shell: pwsh
         run: |
+          $vst3 = Get-ChildItem -Path "build" -Filter "Calculator Imba.vst3" -Recurse -Directory | Select-Object -First 1
           $iss = @"
           [Setup]
           AppName=Calculator Imba
@@ -88,7 +94,7 @@ jobs:
           PrivilegesRequired=admin
 
           [Files]
-          Source: "Output\Calculator Imba.vst3\*"; DestDir: "{app}\Calculator Imba.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
+          Source: "$($vst3.FullName)\*"; DestDir: "{app}\Calculator Imba.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
           "@
           Set-Content -Path "setup.iss" -Value $iss
           iscc "setup.iss"
@@ -110,44 +116,71 @@ jobs:
           ref: master
           path: JUCE
 
-      - name: Build Projucer
-        run: xcodebuild -project JUCE/extras/Projucer/Builds/MacOSX/Projucer.xcodeproj -configuration Release
-
-      - name: Prepare .jucer & Resave
+      - name: Generate CMakeLists.txt
         run: |
-          python3 -c '
-          import glob, xml.etree.ElementTree as ET
-          tpl = glob.glob("JUCE/examples/Plugins/**/GainPlugin*.jucer", recursive=True)
-          tree = ET.parse(tpl)
-          root = tree.getroot()
-          root.set("name", "Calculator Imba")
-          root.set("companyName", "AzotRuss")
-          root.set("pluginName", "Calculator Imba")
-          root.set("pluginFormats", "buildVST3,buildAU")
-          mg = root.find("MAINGROUP")
-          mg.clear()
-          mg.set("id", "MainGrp")
-          mg.set("name", "Calculator Imba")
-          sg = ET.SubElement(mg, "GROUP", id="SrcGrp", name="Source")
-          files = [("bg.jpg","0","1"),("PluginProcessor.cpp","1","0"),("PluginProcessor.h","0","0"),("PluginEditor.cpp","1","0"),("PluginEditor.h","0","0")]
-          for fn, comp, res in files:
-              ET.SubElement(sg, "FILE", id="id_"+fn.replace(".","_"), name=fn, compile=comp, resource=res, file="Source/"+fn)
-          for mp in root.findall(".//MODULEPATH"):
-              mp.set("path", "JUCE/modules")
-          tree.write("Calculator Imba.jucer", encoding="utf-8", xml_declaration=True)
-          '
-          ./JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer --resave "Calculator Imba.jucer"
+          cat << 'EOF' > CMakeLists.txt
+          cmake_minimum_required(VERSION 3.22)
+          project(CalculatorImba VERSION 1.0.0)
+          set(CMAKE_CXX_STANDARD 17)
+          set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
+          add_subdirectory(JUCE)
 
-      - name: Build Plugin (Universal)
-        run: xcodebuild -project "Builds/MacOSX/Calculator Imba.xcodeproj" -configuration Release -alltargets ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO
+          juce_add_plugin(CalculatorImba
+              COMPANY_NAME "AzotRuss"
+              IS_SYNTH FALSE
+              NEEDS_MIDI_INPUT FALSE
+              NEEDS_MIDI_OUTPUT FALSE
+              IS_MIDI_EFFECT FALSE
+              PLUGIN_MANUFACTURER_CODE Azot
+              PLUGIN_CODE Clc1
+              FORMATS VST3 AU
+              PRODUCT_NAME "Calculator Imba")
+
+          juce_generate_juce_header(CalculatorImba)
+
+          juce_add_binary_data(CalculatorImbaData SOURCES Source/bg.jpg)
+
+          target_sources(CalculatorImba PRIVATE
+              Source/PluginProcessor.cpp
+              Source/PluginEditor.cpp)
+
+          target_compile_definitions(CalculatorImba PUBLIC
+              JUCE_WEB_BROWSER=0
+              JUCE_USE_CURL=0
+              JUCE_VST3_CAN_REPLACE_VST2=0)
+
+          target_link_libraries(CalculatorImba PRIVATE
+              CalculatorImbaData
+              juce::juce_audio_utils
+              juce::juce_audio_processors
+              juce::juce_gui_extra
+              juce::juce_graphics
+              juce::juce_gui_basics
+              juce::juce_core
+              juce::juce_data_structures
+              juce::juce_events
+              juce::juce_audio_basics
+              juce::juce_audio_devices
+              juce::juce_audio_formats
+              juce::juce_audio_plugin_client
+              PUBLIC
+              juce::juce_recommended_config_flags
+              juce::juce_recommended_lto_flags
+              juce::juce_recommended_warning_flags)
+          EOF
+
+      - name: Build VST3 & AU (Universal)
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
 
       - name: Package macOS Installer
         run: |
           mkdir -p pkg_root/Library/Audio/Plug-Ins/VST3
           mkdir -p pkg_root/Library/Audio/Plug-Ins/Components
           mkdir -p Installer
-          find Builds/MacOSX/build/Release -name "*.vst3" -exec cp -R {} pkg_root/Library/Audio/Plug-Ins/VST3/ \;
-          find Builds/MacOSX/build/Release -name "*.component" -exec cp -R {} pkg_root/Library/Audio/Plug-Ins/Components/ \;
+          find build -name "*.vst3" -exec cp -R {} pkg_root/Library/Audio/Plug-Ins/VST3/ \;
+          find build -name "*.component" -exec cp -R {} pkg_root/Library/Audio/Plug-Ins/Components/ \;
           pkgbuild --root pkg_root --identifier com.azotruss.calculatorimba --version 1.0 Installer/CalculatorImba_macOS_Installer.pkg
 
       - uses: actions/upload-artifact@v4
