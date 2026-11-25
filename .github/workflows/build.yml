@@ -25,7 +25,9 @@ jobs:
       - name: Resave .jucer
         shell: pwsh
         run: |
-          (Get-Content "Calculator Imba.jucer") -replace 'path="[^"]*modules"', 'path="JUCE/modules"' | Set-Content "Calculator Imba.jucer"
+          $content = Get-Content "Calculator Imba.jucer" -Raw
+          $content = [regex]::Replace($content, 'path="[^"]*?modules"', 'path="JUCE/modules"')
+          Set-Content "Calculator Imba.jucer" $content
           $projucerExe = Get-ChildItem -Path "JUCE\extras\Projucer\Builds" -Filter "Projucer.exe" -Recurse | Select-Object -First 1
           & $projucerExe.FullName --resave "Calculator Imba.jucer"
 
@@ -86,7 +88,7 @@ jobs:
 
       - name: Resave .jucer
         run: |
-          sed -i '' 's|path="[^"]*modules"|path="JUCE/modules"|g' "Calculator Imba.jucer"
+          python3 -c 'import re; s=open("Calculator Imba.jucer").read(); s=re.sub(r"path=\"[^\"]*?modules\"", "path=\"JUCE/modules\"", s); open("Calculator Imba.jucer","w").write(s)'
           ./JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer --resave "Calculator Imba.jucer"
 
       - name: Build Plugin (Universal)
