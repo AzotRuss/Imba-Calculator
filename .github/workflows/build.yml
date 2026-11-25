@@ -1,0 +1,107 @@
+name: Build Calculator Imba (Win + macOS)
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Download JUCE
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: master
+          path: JUCE
+
+      - name: Build Projucer
+        shell: pwsh
+        run: |
+          $projucerSln = Get-ChildItem -Path "JUCE\extras\Projucer\Builds" -Filter "Projucer.sln*" -Recurse | Select-Object -First 1
+          msbuild $projucerSln.FullName /p:Configuration=Release /p:Platform=x64
+
+      - name: Resave .jucer
+        shell: pwsh
+        run: |
+          (Get-Content "Calculator Imba.jucer") -replace 'path="[^"]*modules"', 'path="JUCE/modules"' | Set-Content "Calculator Imba.jucer"
+          $projucerExe = Get-ChildItem -Path "JUCE\extras\Projucer\Builds" -Filter "Projucer.exe" -Recurse | Select-Object -First 1
+          & $projucerExe.FullName --resave "Calculator Imba.jucer"
+
+      - name: Build VST3
+        shell: pwsh
+        run: |
+          $sharedProj = Get-ChildItem -Path "Builds" -Filter "*SharedCode.vcxproj" -Recurse | Select-Object -First 1
+          if ($sharedProj) { msbuild $sharedProj.FullName /p:Configuration=Release /p:Platform=x64 }
+          $vstProj = Get-ChildItem -Path "Builds" -Filter "*VST3.vcxproj" -Recurse | Select-Object -First 1
+          msbuild $vstProj.FullName /p:Configuration=Release /p:Platform=x64 /p:PostBuildEventUseInBuild=false
+
+          $dll = Get-ChildItem -Path "Builds" -Filter "*.dll" -Recurse | Where-Object { $_.FullName -like "*VST3*" } | Select-Object -First 1
+          $bundleDir = "Output\Calculator Imba.vst3\Contents\x86_64-win"
+          New-Item -ItemType Directory -Force -Path $bundleDir | Out-Null
+          Copy-Item $dll.FullName (Join-Path $bundleDir "Calculator Imba.vst3") -Force
+
+      - name: Build EXE Installer
+        shell: pwsh
+        run: |
+          $iss = @"
+          [Setup]
+          AppName=Calculator Imba
+          AppVersion=1.0
+          DefaultDirName={commoncf}\VST3
+          DisableDirPage=yes
+          DisableProgramGroupPage=yes
+          OutputDir=Installer
+          OutputBaseFilename=CalculatorImba_Windows_Installer
+          Compression=lzma2
+          SolidCompression=yes
+          PrivilegesRequired=admin
+
+          [Files]
+          Source: "Output\Calculator Imba.vst3\*"; DestDir: "{app}\Calculator Imba.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
+          "@
+          Set-Content -Path "setup.iss" -Value $iss
+          iscc "setup.iss"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CalculatorImba-Windows-Installer
+          path: Installer\CalculatorImba_Windows_Installer.exe
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download JUCE
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: master
+          path: JUCE
+
+      - name: Build Projucer
+        run: xcodebuild -project JUCE/extras/Projucer/Builds/MacOSX/Projucer.xcodeproj -configuration Release
+
+      - name: Resave .jucer
+        run: |
+          sed -i '' 's|path="[^"]*modules"|path="JUCE/modules"|g' "Calculator Imba.jucer"
+          ./JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer --resave "Calculator Imba.jucer"
+
+      - name: Build Plugin (Universal)
+        run: xcodebuild -project "Builds/MacOSX/Calculator Imba.xcodeproj" -configuration Release -alltargets ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO
+
+      - name: Package macOS Installer
+        run: |
+          mkdir -p pkg_root/Library/Audio/Plug-Ins/VST3
+          mkdir -p pkg_root/Library/Audio/Plug-Ins/Components
+          mkdir -p Installer
+          find Builds/MacOSX/build/Release -name "*.vst3" -exec cp -R {} pkg_root/Library/Audio/Plug-Ins/VST3/ \;
+          find Builds/MacOSX/build/Release -name "*.component" -exec cp -R {} pkg_root/Library/Audio/Plug-Ins/Components/ \;
+          pkgbuild --root pkg_root --identifier com.azotruss.calculatorimba --version 1.0 Installer/CalculatorImba_macOS_Installer.pkg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CalculatorImba-macOS-Installer
+          path: Installer/CalculatorImba_macOS_Installer.pkg
