@@ -22,34 +22,41 @@ jobs:
           $projucerSln = Get-ChildItem -Path "JUCE\extras\Projucer\Builds" -Filter "Projucer.sln*" -Recurse | Select-Object -First 1
           msbuild $projucerSln.FullName /p:Configuration=Release /p:Platform=x64
 
-      - name: Generate & Resave .jucer
+      - name: Prepare .jucer & Resave
         shell: pwsh
         run: |
-          python -c "
-          import xml.etree.ElementTree as ET
-          mods = ['juce_audio_basics','juce_audio_devices','juce_audio_formats','juce_audio_plugin_client','juce_audio_processors','juce_audio_utils','juce_core','juce_data_structures','juce_events','juce_graphics','juce_gui_basics','juce_gui_extra']
-          root = ET.Element('JUCERPROJECT', id='CalcImb1', name='Calculator Imba', projectType='audioplug', useAppConfig='0', addUsingNamespaceToJuceHeader='0', jucerFormatVersion='1', companyName='AzotRuss', buildVST3='1', buildAU='1', pluginFormats='buildVST3,buildAU', pluginManufacturerCode='Azot', pluginCode='Clc1', pluginName='Calculator Imba', pluginDesc='Calculator Imba', pluginChannelConfigs='{1, 1}, {2, 2}')
-          mg = ET.SubElement(root, 'MAINGROUP', id='MainGrp', name='Calculator Imba')
-          sg = ET.SubElement(mg, 'GROUP', id='SrcGrp', name='Source')
-          ET.SubElement(sg, 'FILE', id='bg1', name='bg.jpg', compile='0', resource='1', file='Source/bg.jpg')
-          ET.SubElement(sg, 'FILE', id='f1', name='PluginProcessor.cpp', compile='1', resource='0', file='Source/PluginProcessor.cpp')
-          ET.SubElement(sg, 'FILE', id='f2', name='PluginProcessor.h', compile='0', resource='0', file='Source/PluginProcessor.h')
-          ET.SubElement(sg, 'FILE', id='f3', name='PluginEditor.cpp', compile='1', resource='0', file='Source/PluginEditor.cpp')
-          ET.SubElement(sg, 'FILE', id='f4', name='PluginEditor.h', compile='0', resource='0', file='Source/PluginEditor.h')
-          ms = ET.SubElement(root, 'MODULES')
-          for m in mods: ET.SubElement(ms, 'MODULE', id=m, showAllCode='1', useLocalCopy='0', useGlobalPath='0')
-          ef = ET.SubElement(root, 'EXPORTFORMATS')
-          vs = ET.SubElement(ef, 'VS2022', targetFolder='Builds/VisualStudio2022')
-          cf = ET.SubElement(vs, 'CONFIGURATIONS')
-          ET.SubElement(cf, 'CONFIGURATION', isDebug='1', name='Debug', targetName='Calculator Imba')
-          ET.SubElement(cf, 'CONFIGURATION', isDebug='0', name='Release', targetName='Calculator Imba')
-          mp = ET.SubElement(vs, 'MODULEPATHS')
-          for m in mods: ET.SubElement(mp, 'MODULEPATH', id=m, path='JUCE/modules')
-          ET.ElementTree(root).write('Calculator Imba.jucer', encoding='utf-8', xml_declaration=True)
-          "
+          $template = Get-ChildItem -Path "JUCE\examples\Plugins" -Filter "GainPlugin*.jucer" -Recurse | Select-Object -First 1
+          Copy-Item $template.FullName "Calculator Imba.jucer" -Force
+          $xml = [xml](Get-Content "Calculator Imba.jucer")
+          $p = $xml.JUCERPROJECT
+          $p.SetAttribute("name", "Calculator Imba")
+          $p.SetAttribute("companyName", "AzotRuss")
+          $p.SetAttribute("pluginName", "Calculator Imba")
+          $p.SetAttribute("pluginFormats", "buildVST3,buildAU")
+          $mg = $p.MAINGROUP
+          $mg.RemoveAll()
+          $mg.SetAttribute("id", "MainGrp")
+          $mg.SetAttribute("name", "Calculator Imba")
+          $sg = $xml.CreateElement("GROUP")
+          $sg.SetAttribute("id", "SrcGrp")
+          $sg.SetAttribute("name", "Source")
+          foreach ($f in @("bg.jpg","PluginProcessor.cpp","PluginProcessor.h","PluginEditor.cpp","PluginEditor.h")) {
+            $el = $xml.CreateElement("FILE")
+            $el.SetAttribute("id", "id_" + ($f -replace '\.','_'))
+            $el.SetAttribute("name", $f)
+            $el.SetAttribute("compile", $(if ($f -like "*.cpp") {"1"} else {"0"}))
+            $el.SetAttribute("resource", $(if ($f -eq "bg.jpg") {"1"} else {"0"}))
+            $el.SetAttribute("file", "Source/" + $f)
+            $sg.AppendChild($el) | Out-Null
+          }
+          $mg.AppendChild($sg) | Out-Null
+          foreach ($mp in $xml.SelectNodes("//MODULEPATH")) {
+            $mp.SetAttribute("path", "JUCE/modules")
+          }
+          $xml.Save((Resolve-Path "Calculator Imba.jucer"))
+
           $projucerExe = Get-ChildItem -Path "JUCE\extras\Projucer\Builds" -Filter "Projucer.exe" -Recurse | Select-Object -First 1
           & $projucerExe.FullName --resave "Calculator Imba.jucer"
-          Get-ChildItem -Path "Builds" -Recurse
 
       - name: Build VST3
         shell: pwsh
@@ -106,32 +113,30 @@ jobs:
       - name: Build Projucer
         run: xcodebuild -project JUCE/extras/Projucer/Builds/MacOSX/Projucer.xcodeproj -configuration Release
 
-      - name: Generate & Resave .jucer
+      - name: Prepare .jucer & Resave
         run: |
-          python3 -c "
-          import xml.etree.ElementTree as ET
-          mods = ['juce_audio_basics','juce_audio_devices','juce_audio_formats','juce_audio_plugin_client','juce_audio_processors','juce_audio_utils','juce_core','juce_data_structures','juce_events','juce_graphics','juce_gui_basics','juce_gui_extra']
-          root = ET.Element('JUCERPROJECT', id='CalcImb1', name='Calculator Imba', projectType='audioplug', useAppConfig='0', addUsingNamespaceToJuceHeader='0', jucerFormatVersion='1', companyName='AzotRuss', buildVST3='1', buildAU='1', pluginFormats='buildVST3,buildAU', pluginManufacturerCode='Azot', pluginCode='Clc1', pluginName='Calculator Imba', pluginDesc='Calculator Imba', pluginChannelConfigs='{1, 1}, {2, 2}')
-          mg = ET.SubElement(root, 'MAINGROUP', id='MainGrp', name='Calculator Imba')
-          sg = ET.SubElement(mg, 'GROUP', id='SrcGrp', name='Source')
-          ET.SubElement(sg, 'FILE', id='bg1', name='bg.jpg', compile='0', resource='1', file='Source/bg.jpg')
-          ET.SubElement(sg, 'FILE', id='f1', name='PluginProcessor.cpp', compile='1', resource='0', file='Source/PluginProcessor.cpp')
-          ET.SubElement(sg, 'FILE', id='f2', name='PluginProcessor.h', compile='0', resource='0', file='Source/PluginProcessor.h')
-          ET.SubElement(sg, 'FILE', id='f3', name='PluginEditor.cpp', compile='1', resource='0', file='Source/PluginEditor.cpp')
-          ET.SubElement(sg, 'FILE', id='f4', name='PluginEditor.h', compile='0', resource='0', file='Source/PluginEditor.h')
-          ms = ET.SubElement(root, 'MODULES')
-          for m in mods: ET.SubElement(ms, 'MODULE', id=m, showAllCode='1', useLocalCopy='0', useGlobalPath='0')
-          ef = ET.SubElement(root, 'EXPORTFORMATS')
-          xm = ET.SubElement(ef, 'XCODE_MAC', targetFolder='Builds/MacOSX')
-          cf = ET.SubElement(xm, 'CONFIGURATIONS')
-          ET.SubElement(cf, 'CONFIGURATION', isDebug='1', name='Debug', targetName='Calculator Imba')
-          ET.SubElement(cf, 'CONFIGURATION', isDebug='0', name='Release', targetName='Calculator Imba')
-          mp = ET.SubElement(xm, 'MODULEPATHS')
-          for m in mods: ET.SubElement(mp, 'MODULEPATH', id=m, path='JUCE/modules')
-          ET.ElementTree(root).write('Calculator Imba.jucer', encoding='utf-8', xml_declaration=True)
-          "
+          python3 -c '
+          import glob, xml.etree.ElementTree as ET
+          tpl = glob.glob("JUCE/examples/Plugins/**/GainPlugin*.jucer", recursive=True)
+          tree = ET.parse(tpl)
+          root = tree.getroot()
+          root.set("name", "Calculator Imba")
+          root.set("companyName", "AzotRuss")
+          root.set("pluginName", "Calculator Imba")
+          root.set("pluginFormats", "buildVST3,buildAU")
+          mg = root.find("MAINGROUP")
+          mg.clear()
+          mg.set("id", "MainGrp")
+          mg.set("name", "Calculator Imba")
+          sg = ET.SubElement(mg, "GROUP", id="SrcGrp", name="Source")
+          files = [("bg.jpg","0","1"),("PluginProcessor.cpp","1","0"),("PluginProcessor.h","0","0"),("PluginEditor.cpp","1","0"),("PluginEditor.h","0","0")]
+          for fn, comp, res in files:
+              ET.SubElement(sg, "FILE", id="id_"+fn.replace(".","_"), name=fn, compile=comp, resource=res, file="Source/"+fn)
+          for mp in root.findall(".//MODULEPATH"):
+              mp.set("path", "JUCE/modules")
+          tree.write("Calculator Imba.jucer", encoding="utf-8", xml_declaration=True)
+          '
           ./JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer --resave "Calculator Imba.jucer"
-          ls -la Builds/MacOSX
 
       - name: Build Plugin (Universal)
         run: xcodebuild -project "Builds/MacOSX/Calculator Imba.xcodeproj" -configuration Release -alltargets ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO
