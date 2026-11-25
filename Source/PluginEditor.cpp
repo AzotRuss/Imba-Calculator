@@ -70,7 +70,7 @@ void CalculatorImbaAudioProcessorEditor::resized()
     int btnW = area.getWidth() / cols;
     int btnH = area.getHeight() / rows;
 
-    const juce::String grid = {
+    const char* grid = {
         { "C", "/", "*", "-" },
         { "7", "8", "9", "+" },
         { "4", "5", "6", "=" },
@@ -82,7 +82,7 @@ void CalculatorImbaAudioProcessorEditor::resized()
     {
         for (int c = 0; c < cols; ++c)
         {
-            juce::String target = grid[r][c];
+            juce::String target (grid[r][c]);
             if (target.isEmpty()) continue;
 
             for (auto* btn : buttons)
