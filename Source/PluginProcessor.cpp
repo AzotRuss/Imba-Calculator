@@ -80,9 +80,10 @@ const juce::String CalculatorImbaAudioProcessor::getProgramName (int index)
 void CalculatorImbaAudioProcessor::changeProgramName (int index, const juce::String& newName)
 {
     juce::ignoreUnused (index);
+    juce::ignoreUnused (newName);
 }
 
-void CalculatorImbaAudioProcessorEditor::prepareToPlay (double sampleRate, int samplesPerBlock)
+void CalculatorImbaAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     juce::ignoreUnused (sampleRate, samplesPerBlock);
 }
