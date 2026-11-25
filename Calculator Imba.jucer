@@ -1,79 +1,123 @@
-<?xml version="1.0" encoding="UTF-8"?>
+name: Build Calculator Imba (Win + macOS)
 
-<JUCERPROJECT id="CxVwMN" name="Calculator Imba" projectType="audioplug" useAppConfig="0"
-              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1">
-  <MAINGROUP id="lDWDxZ" name="Calculator Imba">
-    <GROUP id="{D2DC8504-765D-B16D-A150-AF350DF8C5B1}" name="Source">
-      <FILE id="MVr28q" name="PluginProcessor.cpp" compile="1" resource="0"
-            file="Source/PluginProcessor.cpp"/>
-      <FILE id="qoo5Ex" name="PluginProcessor.h" compile="0" resource="0"
-            file="Source/PluginProcessor.h"/>
-      <FILE id="IhiosY" name="PluginEditor.cpp" compile="1" resource="0"
-            file="Source/PluginEditor.cpp"/>
-      <FILE id="YIP2PW" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
-    </GROUP>
-    <FILE id="SkNJA9" name="bg.jpg" compile="0" resource="1" file="Source/bg.jpg"/>
-  </MAINGROUP>
-  <MODULES>
-    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
-    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
-    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
-    <MODULE id="juce_audio_plugin_client" showAllCode="1" useLocalCopy="0"
-            useGlobalPath="1"/>
-    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
-    <MODULE id="juce_audio_processors_headless" showAllCode="1" useLocalCopy="0"
-            useGlobalPath="1"/>
-    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
-    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
-    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
-    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
-    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
-    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
-    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
-  </MODULES>
-  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"/>
-  <EXPORTFORMATS>
-    <VS2026 targetFolder="Builds/VisualStudio2026">
-      <CONFIGURATIONS>
-        <CONFIGURATION isDebug="1" name="Debug" targetName="Calculator Imba"/>
-        <CONFIGURATION isDebug="0" name="Release" targetName="Calculator Imba"/>
-      </CONFIGURATIONS>
-      <MODULEPATHS>
-        <MODULEPATH id="juce_audio_basics" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_devices" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_formats" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_plugin_client" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_processors" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_processors_headless" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_utils" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_core" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_data_structures" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_events" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_graphics" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_gui_basics" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_gui_extra" path="E:/JUCE/modules"/>
-      </MODULEPATHS>
-    </VS2026>
-    <XCODE_MAC targetFolder="Builds/MacOSX">
-      <CONFIGURATIONS>
-        <CONFIGURATION isDebug="1" name="Debug" targetName="Calculator Imba"/>
-        <CONFIGURATION isDebug="0" name="Release" targetName="Calculator Imba"/>
-      </CONFIGURATIONS>
-      <MODULEPATHS>
-        <MODULEPATH id="juce_audio_basics" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_devices" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_formats" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_plugin_client" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_processors" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_processors_headless" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_utils" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_core" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_data_structures" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_events" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_graphics" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_gui_basics" path="E:/JUCE/modules"/>
-        <MODULEPATH id="juce_gui_extra" path="E:/JUCE/modules"/>
-      </MODULEPATHS>
-    </XCODE_MAC>
-  </EXPORTFORMATS>
-</JUCERPROJECT>
+on: [push, workflow_dispatch]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Download JUCE
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: master
+          path: JUCE
+
+      - name: Build Projucer
+        shell: pwsh
+        run: |
+          $projucerSln = Get-ChildItem -Path "JUCE\extras\Projucer\Builds" -Filter "Projucer.sln*" -Recurse | Select-Object -First 1
+          msbuild $projucerSln.FullName /p:Configuration=Release /p:Platform=x64
+
+      - name: Fix paths & Resave .jucer
+        shell: pwsh
+        run: |
+          python -c '
+          import xml.etree.ElementTree as ET
+          tree = ET.parse("Calculator Imba.jucer")
+          root = tree.getroot()
+          for mp in root.findall(".//MODULEPATHS/MODULEPATH"):
+              mp.set("path", "JUCE/modules")
+          for exp in root.findall(".//EXPORTFORMATS/VS2026"):
+              exp.tag = "VS2022"
+          tree.write("Calculator Imba.jucer", encoding="utf-8", xml_declaration=True)
+          '
+          $projucerExe = Get-ChildItem -Path "JUCE\extras\Projucer\Builds" -Filter "Projucer.exe" -Recurse | Select-Object -First 1
+          & $projucerExe.FullName --resave "Calculator Imba.jucer"
+
+      - name: Build VST3
+        shell: pwsh
+        run: |
+          $sharedProj = Get-ChildItem -Path "Builds" -Filter "*SharedCode.vcxproj" -Recurse | Select-Object -First 1
+          if ($sharedProj) { msbuild $sharedProj.FullName /p:Configuration=Release /p:Platform=x64 }
+          $vstProj = Get-ChildItem -Path "Builds" -Filter "*VST3.vcxproj" -Recurse | Select-Object -First 1
+          msbuild $vstProj.FullName /p:Configuration=Release /p:Platform=x64 /p:PostBuildEventUseInBuild=false
+
+          $dll = Get-ChildItem -Path "Builds" -Filter "*.dll" -Recurse | Where-Object { $_.FullName -like "*VST3*" } | Select-Object -First 1
+          $bundleDir = "Output\Calculator Imba.vst3\Contents\x86_64-win"
+          New-Item -ItemType Directory -Force -Path $bundleDir | Out-Null
+          Copy-Item $dll.FullName (Join-Path $bundleDir "Calculator Imba.vst3") -Force
+
+      - name: Build EXE Installer
+        shell: pwsh
+        run: |
+          $iss = @"
+          [Setup]
+          AppName=Calculator Imba
+          AppVersion=1.0
+          DefaultDirName={commoncf}\VST3
+          DisableDirPage=yes
+          DisableProgramGroupPage=yes
+          OutputDir=Installer
+          OutputBaseFilename=CalculatorImba_Windows_Installer
+          Compression=lzma2
+          SolidCompression=yes
+          PrivilegesRequired=admin
+
+          [Files]
+          Source: "Output\Calculator Imba.vst3\*"; DestDir: "{app}\Calculator Imba.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
+          "@
+          Set-Content -Path "setup.iss" -Value $iss
+          iscc "setup.iss"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CalculatorImba-Windows-Installer
+          path: Installer\CalculatorImba_Windows_Installer.exe
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download JUCE
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: master
+          path: JUCE
+
+      - name: Build Projucer
+        run: xcodebuild -project JUCE/extras/Projucer/Builds/MacOSX/Projucer.xcodeproj -configuration Release
+
+      - name: Fix paths & Resave .jucer
+        run: |
+          python3 -c '
+          import xml.etree.ElementTree as ET
+          tree = ET.parse("Calculator Imba.jucer")
+          root = tree.getroot()
+          for mp in root.findall(".//MODULEPATHS/MODULEPATH"):
+              mp.set("path", "JUCE/modules")
+          tree.write("Calculator Imba.jucer", encoding="utf-8", xml_declaration=True)
+          '
+          ./JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer --resave "Calculator Imba.jucer"
+
+      - name: Build Plugin (Universal)
+        run: xcodebuild -project "Builds/MacOSX/Calculator Imba.xcodeproj" -configuration Release -alltargets ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO
+
+      - name: Package macOS Installer
+        run: |
+          mkdir -p pkg_root/Library/Audio/Plug-Ins/VST3
+          mkdir -p pkg_root/Library/Audio/Plug-Ins/Components
+          mkdir -p Installer
+          find Builds/MacOSX/build/Release -name "*.vst3" -exec cp -R {} pkg_root/Library/Audio/Plug-Ins/VST3/ \;
+          find Builds/MacOSX/build/Release -name "*.component" -exec cp -R {} pkg_root/Library/Audio/Plug-Ins/Components/ \;
+          pkgbuild --root pkg_root --identifier com.azotruss.calculatorimba --version 1.0 Installer/CalculatorImba_macOS_Installer.pkg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CalculatorImba-macOS-Installer
+          path: Installer/CalculatorImba_macOS_Installer.pkg
