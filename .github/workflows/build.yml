@@ -28,7 +28,7 @@ jobs:
           python -c "
           import xml.etree.ElementTree as ET
           mods = ['juce_audio_basics','juce_audio_devices','juce_audio_formats','juce_audio_plugin_client','juce_audio_processors','juce_audio_utils','juce_core','juce_data_structures','juce_events','juce_graphics','juce_gui_basics','juce_gui_extra']
-          root = ET.Element('JUCERPROJECT', id='CalcImb1', name='Calculator Imba', projectType='audioplug', useAppConfig='0', addUsingNamespaceToJuceHeader='0', jucerFormatVersion='1', companyName='AzotRuss', pluginFormats='buildVST3,buildAU', pluginManufacturerCode='Azot', pluginCode='Clc1', pluginName='Calculator Imba', pluginDesc='Calculator Imba', pluginChannelConfigs='{1, 1}, {2, 2}')
+          root = ET.Element('JUCERPROJECT', id='CalcImb1', name='Calculator Imba', projectType='audioplug', useAppConfig='0', addUsingNamespaceToJuceHeader='0', jucerFormatVersion='1', companyName='AzotRuss', buildVST3='1', buildAU='1', pluginFormats='buildVST3,buildAU', pluginManufacturerCode='Azot', pluginCode='Clc1', pluginName='Calculator Imba', pluginDesc='Calculator Imba', pluginChannelConfigs='{1, 1}, {2, 2}')
           mg = ET.SubElement(root, 'MAINGROUP', id='MainGrp', name='Calculator Imba')
           sg = ET.SubElement(mg, 'GROUP', id='SrcGrp', name='Source')
           ET.SubElement(sg, 'FILE', id='bg1', name='bg.jpg', compile='0', resource='1', file='Source/bg.jpg')
@@ -49,6 +49,7 @@ jobs:
           "
           $projucerExe = Get-ChildItem -Path "JUCE\extras\Projucer\Builds" -Filter "Projucer.exe" -Recurse | Select-Object -First 1
           & $projucerExe.FullName --resave "Calculator Imba.jucer"
+          Get-ChildItem -Path "Builds" -Recurse
 
       - name: Build VST3
         shell: pwsh
@@ -110,7 +111,7 @@ jobs:
           python3 -c "
           import xml.etree.ElementTree as ET
           mods = ['juce_audio_basics','juce_audio_devices','juce_audio_formats','juce_audio_plugin_client','juce_audio_processors','juce_audio_utils','juce_core','juce_data_structures','juce_events','juce_graphics','juce_gui_basics','juce_gui_extra']
-          root = ET.Element('JUCERPROJECT', id='CalcImb1', name='Calculator Imba', projectType='audioplug', useAppConfig='0', addUsingNamespaceToJuceHeader='0', jucerFormatVersion='1', companyName='AzotRuss', pluginFormats='buildVST3,buildAU', pluginManufacturerCode='Azot', pluginCode='Clc1', pluginName='Calculator Imba', pluginDesc='Calculator Imba', pluginChannelConfigs='{1, 1}, {2, 2}')
+          root = ET.Element('JUCERPROJECT', id='CalcImb1', name='Calculator Imba', projectType='audioplug', useAppConfig='0', addUsingNamespaceToJuceHeader='0', jucerFormatVersion='1', companyName='AzotRuss', buildVST3='1', buildAU='1', pluginFormats='buildVST3,buildAU', pluginManufacturerCode='Azot', pluginCode='Clc1', pluginName='Calculator Imba', pluginDesc='Calculator Imba', pluginChannelConfigs='{1, 1}, {2, 2}')
           mg = ET.SubElement(root, 'MAINGROUP', id='MainGrp', name='Calculator Imba')
           sg = ET.SubElement(mg, 'GROUP', id='SrcGrp', name='Source')
           ET.SubElement(sg, 'FILE', id='bg1', name='bg.jpg', compile='0', resource='1', file='Source/bg.jpg')
@@ -130,6 +131,7 @@ jobs:
           ET.ElementTree(root).write('Calculator Imba.jucer', encoding='utf-8', xml_declaration=True)
           "
           ./JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer --resave "Calculator Imba.jucer"
+          ls -la Builds/MacOSX
 
       - name: Build Plugin (Universal)
         run: xcodebuild -project "Builds/MacOSX/Calculator Imba.xcodeproj" -configuration Release -alltargets ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO
