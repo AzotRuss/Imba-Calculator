@@ -70,7 +70,7 @@ void CalculatorImbaAudioProcessorEditor::resized()
     int btnW = area.getWidth() / cols;
     int btnH = area.getHeight() / rows;
 
-    const char* grid = {
+    const char* grid[5][4] = {
         { "C", "/", "*", "-" },
         { "7", "8", "9", "+" },
         { "4", "5", "6", "=" },
