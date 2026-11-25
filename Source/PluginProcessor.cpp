@@ -1,191 +1,160 @@
-/*
-  ==============================================================================
-
-    This file contains the basic framework code for a JUCE plugin processor.
-
-  ==============================================================================
-*/
-
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-//==============================================================================
-CalculatorImbaAudioProcessor::CalculatorImbaAudioProcessor()
-#ifndef JucePlugin_PreferredChannelConfigurations
-     : AudioProcessor (BusesProperties()
-                     #if ! JucePlugin_IsMidiEffect
-                      #if ! JucePlugin_IsSynth
-                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                      #endif
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
-                     #endif
-                       )
-#endif
+CalculatorImbaAudioProcessorEditor::CalculatorImbaAudioProcessorEditor (CalculatorImbaAudioProcessor& p)
+    : AudioProcessorEditor (&p), audioProcessor (p)
 {
-}
+    backgroundImage = juce::ImageCache::getFromMemory (BinaryData::bg_jpg, BinaryData::bg_jpgSize);
 
-CalculatorImbaAudioProcessor::~CalculatorImbaAudioProcessor()
-{
-}
+    titleLabel.setText ("CALCULATOR IMBA))", juce::dontSendNotification);
+    titleLabel.setFont (juce::FontOptions (12.0f, juce::Font::bold));
+    titleLabel.setJustificationType (juce::Justification::centredLeft);
+    titleLabel.setColour (juce::Label::textColourId, juce::Colour (0xffff9500));
+    addAndMakeVisible (titleLabel);
 
-//==============================================================================
-const juce::String CalculatorImbaAudioProcessor::getName() const
-{
-    return JucePlugin_Name;
-}
+    display.setText ("0", juce::dontSendNotification);
+    display.setFont (juce::FontOptions (32.0f, juce::Font::bold));
+    display.setJustificationType (juce::Justification::centredRight);
+    display.setColour (juce::Label::backgroundColourId, juce::Colour (0xcc1a1a1d));
+    display.setColour (juce::Label::textColourId, juce::Colours::white);
+    addAndMakeVisible (display);
 
-bool CalculatorImbaAudioProcessor::acceptsMidi() const
-{
-   #if JucePlugin_WantsMidiInput
-    return true;
-   #else
-    return false;
-   #endif
-}
+    const juce::StringArray labels = {
+        "C", "/", "*", "-",
+        "7", "8", "9", "+",
+        "4", "5", "6", "=",
+        "1", "2", "3", "0", "."
+    };
 
-bool CalculatorImbaAudioProcessor::producesMidi() const
-{
-   #if JucePlugin_ProducesMidiOutput
-    return true;
-   #else
-    return false;
-   #endif
-}
-
-bool CalculatorImbaAudioProcessor::isMidiEffect() const
-{
-   #if JucePlugin_IsMidiEffect
-    return true;
-   #else
-    return false;
-   #endif
-}
-
-double CalculatorImbaAudioProcessor::getTailLengthSeconds() const
-{
-    return 0.0;
-}
-
-int CalculatorImbaAudioProcessor::getNumPrograms()
-{
-    return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
-                // so this should be at least 1, even if you're not really implementing programs.
-}
-
-int CalculatorImbaAudioProcessor::getCurrentProgram()
-{
-    return 0;
-}
-
-void CalculatorImbaAudioProcessor::setCurrentProgram (int index)
-{
-}
-
-const juce::String CalculatorImbaAudioProcessor::getProgramName (int index)
-{
-    return {};
-}
-
-void CalculatorImbaAudioProcessor::changeProgramName (int index, const juce::String& newName)
-{
-}
-
-//==============================================================================
-void CalculatorImbaAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
-{
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
-}
-
-void CalculatorImbaAudioProcessor::releaseResources()
-{
-    // When playback stops, you can use this as an opportunity to free up any
-    // spare memory, etc.
-}
-
-#ifndef JucePlugin_PreferredChannelConfigurations
-bool CalculatorImbaAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
-{
-  #if JucePlugin_IsMidiEffect
-    juce::ignoreUnused (layouts);
-    return true;
-  #else
-    // This is the place where you check if the layout is supported.
-    // In this template code we only support mono or stereo.
-    // Some plugin hosts, such as certain GarageBand versions, will only
-    // load plugins that support stereo bus layouts.
-    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
-     && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
-        return false;
-
-    // This checks if the input layout matches the output layout
-   #if ! JucePlugin_IsSynth
-    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
-        return false;
-   #endif
-
-    return true;
-  #endif
-}
-#endif
-
-void CalculatorImbaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
-{
-    juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels  = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
-
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
-
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    for (const auto& text : labels)
     {
-        auto* channelData = buffer.getWritePointer (channel);
+        auto* btn = buttons.add (new juce::TextButton (text));
+        btn->setColour (juce::TextButton::buttonColourId,
+                        (text == "=" || text == "+" || text == "-" || text == "*" || text == "/")
+                        ? juce::Colour (0xd9ff9500)
+                        : (text == "C" ? juce::Colour (0xd9a5a5a5) : juce::Colour (0xcc252528)));
+        btn->setColour (juce::TextButton::textColourOffId,
+                        text == "C" ? juce::Colours::black : juce::Colours::white);
 
-        // ..do something to the data...
+        btn->onClick = [this, text] { onButtonClicked (text); };
+        addAndMakeVisible (btn);
+    }
+
+    setSize (280, 400);
+}
+
+CalculatorImbaAudioProcessorEditor::~CalculatorImbaAudioProcessorEditor() {}
+
+void CalculatorImbaAudioProcessorEditor::paint (juce::Graphics& g)
+{
+    g.fillAll (juce::Colour (0xff121214));
+
+    if (backgroundImage.isValid())
+    {
+        g.drawImage (backgroundImage, getLocalBounds().toFloat(),
+                     juce::RectanglePlacement::fillDestination);
+        g.setColour (juce::Colours::black.withAlpha (0.25f));
+        g.fillAll();
     }
 }
 
-//==============================================================================
-bool CalculatorImbaAudioProcessor::hasEditor() const
+void CalculatorImbaAudioProcessorEditor::resized()
 {
-    return true; // (change this to false if you choose to not supply an editor)
+    auto area = getLocalBounds().reduced (10);
+    titleLabel.setBounds (area.removeFromTop (18));
+    display.setBounds (area.removeFromTop (68).reduced (2));
+    area.removeFromTop (8);
+
+    const int cols = 4;
+    const int rows = 5;
+    int btnW = area.getWidth() / cols;
+    int btnH = area.getHeight() / rows;
+
+    const char* grid[5][4] = {
+        { "C", "/", "*", "-" },
+        { "7", "8", "9", "+" },
+        { "4", "5", "6", "=" },
+        { "1", "2", "3", ""  },
+        { "0", ".", "",  ""  }
+    };
+
+    for (int r = 0; r < rows; ++r)
+    {
+        for (int c = 0; c < cols; ++c)
+        {
+            juce::String target (grid[r][c]);
+            if (target.isEmpty()) continue;
+
+            for (auto* btn : buttons)
+            {
+                if (btn->getButtonText() == target)
+                {
+                    int w = (target == "0") ? btnW * 2 : btnW;
+                    int h = (target == "+" || target == "=") ? btnH * 2 : btnH;
+                    btn->setBounds (area.getX() + c * btnW + 2,
+                                    area.getY() + r * btnH + 2,
+                                    w - 4, h - 4);
+                    break;
+                }
+            }
+        }
+    }
 }
 
-juce::AudioProcessorEditor* CalculatorImbaAudioProcessor::createEditor()
+void CalculatorImbaAudioProcessorEditor::onButtonClicked (const juce::String& label)
 {
-    return new CalculatorImbaAudioProcessorEditor (*this);
+    auto currentText = display.getText();
+
+    if (label == "C")
+    {
+        display.setText ("0", juce::dontSendNotification);
+        firstNumber = 0.0;
+        pendingOperator.clear();
+        waitingForSecondNumber = false;
+        return;
+    }
+
+    if (label == "+" || label == "-" || label == "*" || label == "/")
+    {
+        firstNumber = currentText.getDoubleValue();
+        pendingOperator = label;
+        waitingForSecondNumber = true;
+        return;
+    }
+
+    if (label == "=")
+    {
+        if (pendingOperator.isNotEmpty())
+        {
+            double secondNumber = currentText.getDoubleValue();
+            double result = calculate (firstNumber, secondNumber, pendingOperator);
+            display.setText (juce::String (result), juce::dontSendNotification);
+            pendingOperator.clear();
+            waitingForSecondNumber = true;
+        }
+        return;
+    }
+
+    if (waitingForSecondNumber)
+    {
+        currentText = (label == ".") ? "0." : label;
+        waitingForSecondNumber = false;
+    }
+    else
+    {
+        if (label == "." && currentText.contains ("."))
+            return;
+        currentText = (currentText == "0" && label != ".") ? label : currentText + label;
+    }
+
+    display.setText (currentText, juce::dontSendNotification);
 }
 
-//==============================================================================
-void CalculatorImbaAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+double CalculatorImbaAudioProcessorEditor::calculate (double a, double b, const juce::String& op)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
-}
-
-void CalculatorImbaAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
-{
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
-}
-
-//==============================================================================
-// This creates new instances of the plugin..
-juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
-{
-    return new CalculatorImbaAudioProcessor();
+    if (op == "+") return a + b;
+    if (op == "-") return a - b;
+    if (op == "*") return a * b;
+    if (op == "/") return (b != 0.0) ? (a / b) : 0.0;
+    return b;
 }
